@@ -29,17 +29,18 @@ WORKDIR /var/www/html
 # Instala dependencias (sin dependencias de desarrollo)
 RUN composer install --no-dev --optimize-autoloader
 
-# Genera la clave de la aplicación y cachea la configuración/rutas
-# RUN php artisan key:generate
-RUN php artisan config:cache
-RUN php artisan route:cache
+# Genera la clave de la aplicación y optimiza rutas/vistas
+# Mantenemos esto para generar el APP_KEY si es necesario
+RUN php artisan key:generate
+# ELIMINAMOS 'config:cache' para que lea el DB_HOST de Render al iniciar
+# ELIMINAMOS 'route:cache' para evitar conflictos, lo haremos en el Start Command
 
-# 4. PERMISOS Y SERVIDOR WEB
 # Establece los permisos correctos (esenciales para Laravel)
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Habilita el módulo de reescritura (rewrite)
+# 4. AJUSTE DEL SERVIDOR WEB (Apache)
 RUN a2enmod rewrite
-# Copia el archivo de configuración de Virtual Host
 COPY .docker/000-default.conf /etc/apache2/sites-available/000-default.conf
+
+# ELIMINAMOS la línea 'RUN php artisan config:cache' si estaba presente.
