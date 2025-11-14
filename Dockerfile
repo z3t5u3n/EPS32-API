@@ -30,7 +30,7 @@ WORKDIR /var/www/html
 RUN composer install --no-dev --optimize-autoloader
 
 # Genera la clave de la aplicación y cachea la configuración/rutas
-RUN php artisan key:generate
+# RUN php artisan key:generate
 RUN php artisan config:cache
 RUN php artisan route:cache
 
