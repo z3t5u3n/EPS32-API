@@ -12,13 +12,16 @@ class Dth11 extends Model
     // Nombre de la tabla de la base de datos
     protected $table = 'humedad';
 
+    // *** CAMBIO CLAVE ***
+    // Indica a Laravel que el campo que debe usar para el ordenamiento cronológico
+    // (en lugar del nativo 'created_at') es 'fecha'.
+    const CREATED_AT = 'fecha';
+
     // Campos que pueden ser llenados masivamente
-    // Hemos renombrado 'humedad' a 'humedad_ambiente' para mayor claridad
-    // y añadido 'porcentaje_llenado' para el sensor YL69.
     protected $fillable = [
         'humedad_ambiente',
         'temperatura',
-        'porcentaje_llenado' // Nuevo campo para el sensor YL69/HL69
+        'porcentaje_llenado'
     ];
 
     // Desactiva los timestamps si la tabla no tiene 'created_at' y 'updated_at'
