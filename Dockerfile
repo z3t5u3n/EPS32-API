@@ -1,59 +1,45 @@
-# Dockerfile Corregido para Laravel API en Render (con PostgreSQL y Nginx/PHP-FPM)
+FROM php:8.3-apache
 
-# --- 1. Etapa de Construcción (composer_install) ---
-FROM composer:2 AS composer_install
-
-# Establece el directorio de trabajo dentro del contenedor
-WORKDIR /app
-
-# Copia los archivos de configuración y composer
-COPY composer.json composer.lock ./
-
-# CAMBIO CLAVE 1: Instala las dependencias de PHP SIN EJECUTAR SCRIPTS de Laravel.
-# El flag --no-scripts evita el error "Could not open input file: artisan"
-RUN composer install --no-dev --optimize-autoloader --no-scripts
-
-# --- 2. Etapa de Producción (production_stage) ---
-FROM php:8.2-fpm-alpine AS production_stage
-
-# Instala dependencias del sistema y extensiones de PHP.
-RUN apk update && apk add --no-cache \
-    nginx \
-    supervisor \
-    libpq \
-    postgresql-client \
-    # CAMBIO CLAVE 2: Añade postgresql-dev para resolver "Cannot find libpq-fe.h"
-    postgresql-dev \ 
-    git \
-    build-base \
+# 1. INSTALAR DEPENDENCIAS DE LINUX
+# Se instala libpq-dev para la conexión a PostgreSQL.
+RUN apt-get update && \
+    apt-get install -y \
     libzip-dev \
     libpng-dev \
-    jpeg-dev \
-    # Limpieza para reducir el tamaño de la imagen
-    && rm -rf /var/cache/apk/* \
-    && docker-php-ext-install pdo pdo_pgsql zip gd
+    libjpeg-dev \
+    libpq-dev \
+    git \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Establece el directorio de trabajo al directorio de la aplicación
+# 2. INSTALAR EXTENSIONES DE PHP
+# Se instala pdo_pgsql para PostgreSQL.
+RUN docker-php-ext-install pdo_pgsql zip gd
+
+# Instala Composer globalmente
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Copia los archivos del proyecto a la carpeta de Apache
+COPY . /var/www/html/
+
+# Cambia el directorio de trabajo
 WORKDIR /var/www/html
 
-# Copia la instalación de Composer y el resto del código de la aplicación
-COPY --from=composer_install /app /var/www/html
-COPY . .
+# 3. CONFIGURACIÓN Y OPTIMIZACIÓN DE LARAVEL (Fase de Build)
+# Instala dependencias (sin dependencias de desarrollo)
+RUN composer install --no-dev --optimize-autoloader
 
-# Copia y configura la configuración de Nginx (asumiendo que nginx.conf está en la raíz)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# Configura y optimiza Laravel
+# Genera la clave de la aplicación y cachea la configuración/rutas
 RUN php artisan key:generate
 RUN php artisan config:cache
 RUN php artisan route:cache
 
-# Configura los permisos de escritura para Laravel
-RUN chown -R www-data:www-data /var/www/html/storage \
-    && chown -R www-data:www-data /var/www/html/bootstrap/cache
+# 4. PERMISOS Y SERVIDOR WEB
+# Establece los permisos correctos (esenciales para Laravel)
+RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+RUN chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Expone el puerto por defecto de Nginx
-EXPOSE 80
-
-# Comando de inicio: Ejecuta Nginx en primer plano (requiere un setup de Nginx/PHP-FPM)
-CMD ["nginx", "-g", "daemon off;"]
+# Habilita el módulo de reescritura (rewrite)
+RUN a2enmod rewrite
+# Copia el archivo de configuración de Virtual Host
+COPY .docker/000-default.conf /etc/apache2/sites-available/000-default.conf
